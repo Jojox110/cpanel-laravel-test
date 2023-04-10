@@ -1,0 +1,46 @@
+
+.cpanel.yml
+---
+deployment:
+  tasks:
+    - |
+      if [ ! -f .deploy.sh ]
+      then
+          cp .deploy.example.sh .deploy.sh
+          exit
+      else
+          source .deploy.sh
+      fi
+    - mkdir -p $DEPLOYPATH "$(dirname $PUBLICPATH)" "$(dirname $STORAGEPATH)"
+
+    - |
+      find -mindepth 1 -maxdepth 1 \
+        ! -name "storage" \
+        -exec rm -rf $DEPLOYPATH/{} \;
+    - |
+      find -mindepth 1 -maxdepth 1 \
+          ! -name ".git" \
+          ! -name ".gitignore" \
+          ! -name ".cpanel.yml" \
+          ! -name ".deploy.example.sh" \
+          ! -name ".deploy.sh" \
+          -exec cp -R -t $DEPLOYPATH {} +
+    - ln -fsn "$DEPLOYPATH/public" $PUBLICPATH
+    - ln -fsn "$DEPLOYPATH/storage/app/public" $STORAGEPATH
+
+    - cd $DEPLOYPATH
+    
+    - php -v &> deploy.log
+    
+    - if [ ! -f composer.phar ]; then wget -O - https://getcomposer.org/installer | php &>> deploy.log; fi
+    - php composer.phar install --no-interaction --ignore-platform-reqs --no-dev &>> deploy.log
+
+    - |
+      if [ ! -f .env ]
+      then
+        cp .env.example .env
+        php artisan key:generate &>> deploy.log
+      else
+        php artisan optimize &>> deploy.log
+        # php artisan migrate --force &>> deploy.log
+      fi
